@@ -1,0 +1,123 @@
+---
+title: "Untitled"
+format: html
+---
+
+
+```{r}
+if (!requireNamespace("BiocManager", quietly = TRUE)) {
+    install.packages("BiocManager")
+}
+
+BiocManager::install("DeconvoBuddies")
+
+## Check that you have a valid Bioconductor installation
+BiocManager::valid()
+```
+
+
+```{r}
+## Packages for different types of RNA-seq data structures in R
+library("SingleCellExperiment")
+
+## For downloading data
+library("spatialLIBD")
+
+## Other helper packages for this vignette
+library("dplyr")
+library("ggplot2")
+
+## Our main package
+library("DeconvoBuddies")
+
+# Install zellkonverter if not already installed
+if (!requireNamespace("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+BiocManager::install("zellkonverter")
+
+library(zellkonverter)
+#sce <- readH5AD("your_file.h5ad")
+
+library(forcats)
+```
+
+
+```{r}
+#for AANRI
+## read single cell RNA-seq dataset (anndata object)
+
+sce <- zellkonverter::readH5AD("/Users/nina.rajpurohit/Desktop/DLPFC_adata_consensus_full.h5ad", use_hdf5 = TRUE)
+
+
+## exclude Ambiguous cell type
+#sce <- sce[, sce$cellType_broad_hc != "Ambiguous"]
+#sce$cellType_broad_hc <- droplevels(sce$cellType_broad_hc)
+
+## Check the broad cell type distribution
+table(sce$Celltype_scpoli_sctype_consensus_MTG)
+
+#   Astrocyte     Endothelial     Ex: L2/3 IT       Ex: L4 IT       Ex: L5 ET       Ex: L5 IT     Ex: L5/6 NP 
+#          55638             187           51292           22372            4191           17875            2779 
+#      Ex: L6 CT       Ex: L6 IT  Ex: L6 IT Car3         Ex: L6b  In: Chandelier       In: Lamp5  In: Lamp5 Lhx6 
+#           3547            7937            2301            3226            5190            6599            2282 
+#       In: Pax6       In: Pvalb        In: Sncg         In: Sst   In: Sst Chodl         In: Vip   Microglia-PVM 
+#           2133           15705            4910           16782            3426           15743           24578 
+#            OPC Oligodendrocyte            VLMC 
+#          27483           80184            2593
+```
+
+```{r}
+#collapse excitatory and inhibitory subtypes into broad types
+
+sce$Celltype_scpoli_sctype_consensus_MTG_broad <- fct_collapse(sce$Celltype_scpoli_sctype_consensus_MTG,
+        "Excit" = c("Ex: L2/3 IT", "Ex: L4 IT", "Ex: L5 ET", "Ex: L5 IT", "Ex: L5/6 NP", "Ex: L6 CT",  "Ex: L6 IT","Ex: L6 IT Car3","Ex: L6b"),
+        "Inhib" = c("In: Chandelier", "In: Lamp5", "In: Lamp5 Lhx6", "In: Pax6", "In: Pvalb", "In: Sncg", "In: Sst", "In: Sst Chodl", "In: Vip"),
+    )
+
+levels(sce$Celltype_scpoli_sctype_consensus_MTG_broad)
+table(sce$Celltype_scpoli_sctype_consensus_MTG_broad)
+
+#      Astrocyte     Endothelial           Excit           Inhib   Microglia-PVM             OPC Oligodendrocyte 
+#          55638             187          115520           72770           24578           27483           80184 
+#           VLMC 
+#           2593 
+
+
+```
+
+```{r}
+sce_path_zip <- fetch_deconvo_data("sce")
+#> 2025-07-28 19:58:54.96071 loading file /github/home/.cache/R/BiocFileCache/20110218742_sce_DLPFC_annotated.zip%3Fdl%3D1
+
+## unzip and load the data
+sce_path <- unzip(sce_path_zip, exdir = tempdir())
+sce2 <- HDF5Array::loadHDF5SummarizedExperiment(
+    file.path(tempdir(), "sce_DLPFC_annotated")
+)
+
+```
+
+
+
+```{r}
+# calculate the Mean Ratio of genes for each cell type in sce
+marker_stats_MeanRatio <- get_mean_ratio(
+    sce = sce, # sce is the SingleCellExperiment with our data
+    assay_name = "X", ## assay to use, we recommend logcounts [default] # names(SummarizedExperiment::assays(sce))
+    cellType_col = "Celltype_scpoli_sctype_consensus_MTG_broad", # column in colData with cell type info
+    gene_ensembl = "features", # column in rowData with ensembl gene ids
+#    gene_name = "gene_name" # column in rowData with gene names/symbols
+)
+```
+
+```{r}
+# calculate the Mean Ratio of genes for each cell type in sce
+marker_stats_MeanRatio_2 <- get_mean_ratio(
+    sce = sce2, # sce is the SingleCellExperiment with our data
+    assay_name = "logcounts", ## assay to use, we recommend logcounts [default]
+    cellType_col = "cellType_broad_hc", # column in colData with cell type info
+    gene_ensembl = "gene_id", # column in rowData with ensembl gene ids
+    gene_name = "gene_name" # column in rowData with gene names/symbols
+)
+```
+
